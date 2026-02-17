@@ -1,0 +1,47 @@
+from typing import Dict, Any, List
+import pandas as pd
+from sklearn.feature_extraction.text import TfidfVectorizer
+from sklearn.metrics.pairwise import cosine_similarity
+
+class DataAnalyzer:
+    def __init__(self, query_interface: QueryInterface):
+        self.query_interface = query_interface
+
+    def analyze_relations(self, entity_id: str) -> Dict[str, Any]:
+        # Get all data related to the entity
+        related_data = self.query_interface.get_related_data(entity_id, 'related_to')
+
+        if not related_data:
+            return {"message": "No related data found"}
+
+        # Convert to DataFrame for easier manipulation
+        df = pd.DataFrame(related_data)
+
+        # Extract text data for analysis
+        texts = df['data'].apply(lambda x: x.get('text', ''))
+
+        # Vectorize the text data
+        vectorizer = TfidfVectorizer()
+        tfidf_matrix = vectorizer.fit_transform(texts)
+
+        # Calculate cosine similarity between all pairs
+        similarity_matrix = cosine_similarity(tfidf_matrix)
+
+        # Find the most similar pairs
+        similar_pairs = []
+        for i in range(len(similarity_matrix)):
+            for j in range(i+1, len(similarity_matrix)):
+                similar_pairs.append({
+                    'entity1': df.iloc[i]['id'],
+                    'entity2': df.iloc[j]['id'],
+                    'similarity': similarity_matrix[i][j]
+                })
+
+        # Sort by similarity score
+        similar_pairs.sort(key=lambda x: x['similarity'], reverse=True)
+
+        return {
+            'entity_id': entity_id,
+            'total_related_entities': len(related_data),
+            'most_similar_pairs': similar_pairs[:5]  # Return top 5 most similar pairs
+        }
